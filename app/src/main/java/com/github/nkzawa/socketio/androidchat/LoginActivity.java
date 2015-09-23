@@ -4,6 +4,7 @@ import android.app.Activity;
 import android.content.Intent;
 import android.os.Bundle;
 import android.text.TextUtils;
+import android.util.Log;
 import android.view.KeyEvent;
 import android.view.View;
 import android.view.View.OnClickListener;
@@ -11,6 +12,11 @@ import android.view.inputmethod.EditorInfo;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.TextView;
+
+import com.snappydb.DB;
+import com.snappydb.DBFactory;
+import com.snappydb.SnappydbException;
+
 import io.socket.emitter.Emitter;
 import io.socket.client.IO;
 import io.socket.client.Socket;
@@ -24,6 +30,8 @@ import java.net.URISyntaxException;
  * A login screen that offers login via username.
  */
 public class LoginActivity extends Activity {
+
+    private DB mSettings;
 
     private EditText mUsernameView;
 
@@ -64,13 +72,29 @@ public class LoginActivity extends Activity {
             }
         });
 
+        // Restore preferences
+        try {
+            mSettings = DBFactory.open(this);
+            String username = mSettings.get("username");
+
+            if (username != null && !username.isEmpty()) {
+                mUsernameView.setText(username);
+                int position = mUsernameView.length();
+                mUsernameView.setSelection(position);
+            }
+
+            mSettings.close();
+        } catch (SnappydbException e) {
+            Log.d("BOOGIE", "Failed to load settings.");
+            e.printStackTrace();
+        }
+
         mSocket.on("login", onLogin);
     }
 
     @Override
     protected void onDestroy() {
         super.onDestroy();
-
         mSocket.off("login", onLogin);
     }
 
@@ -117,6 +141,16 @@ public class LoginActivity extends Activity {
             intent.putExtra("username", mUsername);
             intent.putExtra("numUsers", numUsers);
             setResult(RESULT_OK, intent);
+
+            // save preferences
+            try {
+                mSettings = DBFactory.open(getApplicationContext());
+                mSettings.put("username", mUsername);
+                mSettings.close();
+            } catch (SnappydbException e) {
+                Log.d("BOOGIE", "Failed to save settings.");
+            }
+
             finish();
         }
     };
